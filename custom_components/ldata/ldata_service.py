@@ -3,6 +3,7 @@
 import logging
 import typing
 import time
+import socket
 
 import requests
 
@@ -63,6 +64,14 @@ class LDATAService:
         
         # Update the last attempt time *before* the request
         self.last_login_attempt_time = time.time()
+
+    def _test_internet_connectivity(self) -> str:
+        """Helper to check if google.com is resolvable."""
+        try:
+            socket.gethostbyname("google.com")
+            return "ACTIVE"
+        except socket.error:
+            return "DOWN"
 
     def clear_tokens(self) -> None:
         """Clear the tokens to force a re-login."""
@@ -202,9 +211,13 @@ class LDATAService:
                 
         except requests.exceptions.RequestException as ex:
             # This is a network/DNS/timeout error.
+            connectivity = self._test_internet_connectivity()
+            if connectivity == "ACTIVE":
+                 _LOGGER.warning("Leviton API connection failed (%s), but google.com is resolvable. This indicates a Leviton server issue.", ex)
+            else:
+                 _LOGGER.warning("Leviton API connection failed (%s), and google.com failed to resolve. Internet or DNS is likely down.", ex)
+            
             # We re-raise it so the coordinator can catch it as a *temporary* UpdateFailed
-            # instead of a *permanent* ConfigEntryAuthFailed.
-            _LOGGER.warning("Network error during token validation: %s", ex)
             raise
         except Exception as ex:
             # Catch any other unexpected error
