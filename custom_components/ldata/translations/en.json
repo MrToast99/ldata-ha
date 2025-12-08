@@ -33,7 +33,7 @@
             "init": {
                 "title": "Leviton LDATA Options",
                 "data": {
-                    "update_interval": "Update Interval (seconds)",
+                    "update_interval": "Update Interval (seconds, min 60 seconds)",
                     "three_phase": "Three Phase System",
                     "read_only": "Read Only Mode",
                     "log_warnings": "Log General Plugin Errors",
