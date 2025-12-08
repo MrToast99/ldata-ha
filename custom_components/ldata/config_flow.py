@@ -250,7 +250,7 @@ class OptionsFlow(config_entries.OptionsFlow):
             vol.Optional(
                 UPDATE_INTERVAL,
                 default=current_options.get(UPDATE_INTERVAL, UPDATE_INTERVAL_DEFAULT),
-            ): vol.All(vol.Coerce(int), vol.Range(min=30)),
+            ): vol.All(vol.Coerce(int), vol.Range(min=60)),
             vol.Optional(
                 THREE_PHASE,
                 default=current_options.get(THREE_PHASE, current_data.get(THREE_PHASE, THREE_PHASE_DEFAULT)),
