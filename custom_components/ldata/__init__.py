@@ -23,7 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Get the update interval from options and enforce a 30-second minimum.
     user_update_interval = entry.options.get(UPDATE_INTERVAL, UPDATE_INTERVAL_DEFAULT)
-    update_interval = max(user_update_interval, 30)
+    update_interval = max(user_update_interval, 60)
 
     if user_update_interval < 30:
         _LOGGER.warning(
