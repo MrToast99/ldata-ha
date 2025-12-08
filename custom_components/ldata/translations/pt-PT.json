@@ -33,7 +33,7 @@
             "init": {
                 "title": "Opções Leviton LDATA",
                 "data": {
-                    "update_interval": "Intervalo de Atualização (segundos)",
+                    "update_interval": "Intervalo de atualização (segundos, mínimo de 60 segundos)",
                     "three_phase": "Sistema Trifásico",
                     "read_only": "Modo Somente Leitura",
                     "log_warnings": "Registrar Erros Gerais do Plugin",
