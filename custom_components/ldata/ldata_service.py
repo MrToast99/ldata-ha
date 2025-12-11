@@ -50,6 +50,7 @@ class LDATAService:
         self.account_id = ""
         self.residence_id_list = []  # type: list[str]
         self.last_login_attempt_time = 0.0
+        self.session = requests.Session()
 
     def _check_rate_limit(self) -> None:
         """Enforces a 10-second wait between login attempts."""
@@ -88,7 +89,7 @@ class LDATAService:
         headers = {**defaultHeaders}
         data = {"email": self.username, "password": self.password}
         
-        result = requests.post(
+        result = self.session.post(
             "https://my.leviton.com/api/Person/login?include=user",
             headers=headers,
             json=data,
@@ -143,7 +144,7 @@ class LDATAService:
             "code": code
         }
         
-        result = requests.post(
+        result = self.session.post(
             "https://my.leviton.com/api/Person/login?include=user",
             headers=headers,
             json=data,
@@ -186,7 +187,7 @@ class LDATAService:
         url = f"https://my.leviton.com/api/Person/{self.userid}/residentialPermissions"
         
         try:
-            result = requests.get(url, headers=headers, timeout=15)
+            result = self.session.get(url, headers=headers, timeout=15)
             if result.status_code == 200:
                 _LOGGER.debug("Stored token is still valid.")
                 # We need to get the account ID here if we don't have it
@@ -237,7 +238,7 @@ class LDATAService:
         url = f"https://my.leviton.com/api/Person/{self.userid}/residentialPermissions"
 
         try:
-            result = requests.get(
+            result = self.session.get(
                 url,
                 headers=headers,
                 timeout=15,
@@ -278,7 +279,7 @@ class LDATAService:
         headers["authorization"] = self.auth_token
         url = f"https://my.leviton.com/api/Person/{self.userid}/residentialPermissions"
         try:
-            result = requests.get(
+            result = self.session.get(
                 url,
                 headers=headers,
                 timeout=15,
@@ -310,7 +311,7 @@ class LDATAService:
         headers["authorization"] = self.auth_token
         url = f"https://my.leviton.com/api/ResidentialAccounts/{self.account_id}/residences"
         try:
-            result = requests.get(
+            result = self.session.get(
                 url,
                 headers=headers,
                 timeout=15,
@@ -338,7 +339,7 @@ class LDATAService:
         headers["authorization"] = self.auth_token
         url = f"https://my.leviton.com/api/ResidentialAccounts/{self.account_id}"
         try:
-            result = requests.get(
+            result = self.session.get(
                 url,
                 headers=headers,
                 timeout=15,
@@ -369,7 +370,7 @@ class LDATAService:
         headers["filter"] = "{}"
         url = f"https://my.leviton.com/api/IotWhems/{panel_id}/residentialBreakers"
         try:
-            result = requests.get(
+            result = self.session.get(
                 url,
                 headers=headers,
                 timeout=15,
@@ -397,7 +398,7 @@ class LDATAService:
         headers["filter"] = "{}"
         url = f"https://my.leviton.com/api/IotWhems/{panel_id}/iotCts"
         try:
-            result = requests.get(
+            result = self.session.get(
                 url,
                 headers=headers,
                 timeout=15,
@@ -427,7 +428,7 @@ class LDATAService:
             headers["filter"] = "{}"
             url = f"https://my.leviton.com/api/Residences/{residenceId}/iotWhems"
             try:
-                result = requests.get(
+                result = self.session.get(
                     url,
                     headers=headers,
                     timeout=15,
@@ -469,7 +470,7 @@ class LDATAService:
             headers["filter"] = '{"include":["residentialBreakers"]}'
             url = f"https://my.leviton.com/api/Residences/{residenceId}/residentialBreakerPanels"
             try:
-                result = requests.get(
+                result = self.session.get(
                     url,
                     headers=headers,
                     timeout=15,
@@ -504,7 +505,7 @@ class LDATAService:
         headers = {**defaultHeaders}
         headers["authorization"] = self.auth_token
         data = {"bandwidth": 1}
-        result = requests.put(
+        result = self.session.put(
             url,
             headers=headers,
             json=data,
@@ -524,7 +525,7 @@ class LDATAService:
             f"https://my.leviton.com/home/residential-breakers/{breaker_id}/settings"
         )
         data = {"remoteTrip": True}
-        result = requests.put(
+        result = self.session.put(
             url,
             headers=headers,
             json=data,
@@ -544,7 +545,7 @@ class LDATAService:
             f"https://my.leviton.com/home/residential-breakers/{breaker_id}/settings"
         )
         data = {"remoteOn": True}
-        result = requests.put(
+        result = self.session.put(
             url,
             headers=headers,
             json=data,
