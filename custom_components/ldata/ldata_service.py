@@ -166,111 +166,93 @@ class LDATAService:
         raise LDATAAuthError("Invalid 2FA code")
 
     def refresh_auth(self) -> bool:
-        """Validate the stored auth token."""
+        """Validate the stored auth token with retries."""
         if not self.refresh_token:
             _LOGGER.debug("No stored token available.")
             return False # This will trigger credential login
 
-        _LOGGER.debug("Validating stored auth token.")
-        
-        self.auth_token = self.refresh_token
-        
         # We need the userId to check. If we don't have it, we must fail.
         if not self.userid:
              _LOGGER.warning("No userId found, cannot validate token. Forcing re-auth.")
              self.clear_tokens()
              return False # Force re-login
-
-        # Try a simple, harmless API call to validate the token
+             
+        _LOGGER.debug("Validating stored auth token.")
+        self.auth_token = self.refresh_token
+        
         headers = {**defaultHeaders}
         headers["authorization"] = self.auth_token
         url = f"https://my.leviton.com/api/Person/{self.userid}/residentialPermissions"
         
-        try:
-            result = self.session.get(url, headers=headers, timeout=15)
-            if result.status_code == 200:
-                _LOGGER.debug("Stored token is still valid.")
-                # We need to get the account ID here if we don't have it
-                if not self.account_id:
-                    json_data = result.json()
-                    if len(json_data) > 0:
-                        for item in json_data:
-                            if "residentialAccountId" in item:
-                                self.account_id = item["residentialAccountId"]
-                                break
-                return True
-            else:
-                # Check if this is a *real* auth error
-                if result.status_code in (401, 403, 406):
-                    _LOGGER.warning("Stored token check failed with status %s", result.status_code)
-                    self.clear_tokens()
-                    raise LDATAAuthError("Token expired or invalid")
-                else:
-                    # This is some other server error, treat as temporary
-                    _LOGGER.warning("Token validation check failed with non-auth error: %s", result.status_code)
-                    raise requests.exceptions.RequestException(f"Server error: {result.status_code}")
+        # --- RETRY LOGIC START ---
+        attempts = 0
+        max_attempts = 3
+        
+        while attempts < max_attempts:
+            attempts += 1
+            try:
+                # Use self.session if you upgraded to persistent sessions, otherwise requests
+                # result = self.session.get(url, headers=headers, timeout=15)
+                result = requests.get(url, headers=headers, timeout=15)
                 
-        except requests.exceptions.RequestException as ex:
-            # This is a network/DNS/timeout error.
-            connectivity = self._test_internet_connectivity()
-            if connectivity == "ACTIVE":
-                 _LOGGER.warning("Leviton API connection failed (%s), but google.com is resolvable. This indicates a Leviton server issue.", ex)
-            else:
-                 _LOGGER.warning("Leviton API connection failed (%s), and google.com failed to resolve. Internet or DNS is likely down.", ex)
-            
-            # We re-raise it so the coordinator can catch it as a *temporary* UpdateFailed
-            raise
-        except Exception as ex:
-            # Catch any other unexpected error
-            _LOGGER.warning("Error during token validation: %s", ex)
-            self.clear_tokens()
-            raise LDATAAuthError(f"Token validation error: {ex}") from ex
+                if result.status_code == 200:
+                    _LOGGER.debug("Stored token is still valid.")
+                    if not self.account_id:
+                        json_data = result.json()
+                        if len(json_data) > 0:
+                            for item in json_data:
+                                if "residentialAccountId" in item:
+                                    self.account_id = item["residentialAccountId"]
+                                    break
+                    return True # Success!
+                
+                # Handle Auth Errors (401, 403, 406)
+                if result.status_code in (401, 403, 406):
+                    _LOGGER.warning(
+                        "Token check failed (Attempt %s/%s) with status %s. Waiting...", 
+                        attempts, max_attempts, result.status_code
+                    )
+                    if attempts < max_attempts:
+                        time.sleep(5) # Wait 5 seconds before retrying
+                        continue # Try again
+                    else:
+                        # STRIKE 3: The token is truly dead.
+                        _LOGGER.error("Token invalid after %s attempts. Forcing re-auth.", max_attempts)
+                        self.clear_tokens()
+                        raise LDATAAuthError("Token expired or invalid")
+                
+                # Handle Server Errors (500, 502, 503, etc)
+                else:
+                    _LOGGER.warning(
+                        "Server error during token check (Attempt %s/%s): %s. Waiting...", 
+                        attempts, max_attempts, result.status_code
+                    )
+                    # We do NOT clear tokens for server errors.
+                    if attempts < max_attempts:
+                        time.sleep(5)
+                        continue
+                    else:
+                        raise requests.exceptions.RequestException(f"Server error: {result.status_code}")
 
-    def get_residential_account(self) -> bool:
-        """Get the Residential Account for the user."""
-        # This function is now partially handled by refresh_auth()
-        if self.account_id:
-            _LOGGER.debug("Account ID already known.")
-            return True
-
-        headers = {**defaultHeaders}
-        headers["authorization"] = self.auth_token
-        url = f"https://my.leviton.com/api/Person/{self.userid}/residentialPermissions"
-
-        try:
-            result = self.session.get(
-                url,
-                headers=headers,
-                timeout=15,
-            )
-            _LOGGER.debug(
-                "Get Residential Account result %d: %s", result.status_code, result.text
-            )
-            
-            if result.status_code in (401, 403, 406):
-                raise LDATAAuthError("Auth token invalid during API call")
-
-            result_json = result.json()
-            if result.status_code == 200 and len(result_json) > 0:
-                # Search for the residential account id
-                for item in result_json:
-                    if "residentialAccountId" in item:
-                        self.account_id = item["residentialAccountId"]
-                        if self.account_id is not None:
-                            break
-                if self.account_id is not None:
-                    # Save the userId if we just got it
-                    if "userId" in result_json[0]:
-                        self.userid = result_json[0]["userId"]
-                    return True
-            _LOGGER.error("Unable to get Residential Account!")
-            self.clear_tokens()
-        except Exception as e:  # pylint: disable=broad-except
-            if isinstance(e, LDATAAuthError):
-                raise # Re-raise auth errors
-            _LOGGER.exception("Exception while getting Residential Account!")
-            self.clear_tokens()
-
+            except requests.exceptions.RequestException as ex:
+                # Handle Network Errors (DNS, Timeout, etc)
+                _LOGGER.warning(
+                    "Network error during token check (Attempt %s/%s): %s. Waiting...",
+                    attempts, max_attempts, ex
+                )
+                if attempts < max_attempts:
+                    time.sleep(5)
+                    continue
+                else:
+                    # We do NOT clear tokens for network errors.
+                    # Secondary DNS check (optional, if you added that helper function)
+                    # self._test_internet_connectivity() 
+                    raise
+            except Exception as ex:
+                _LOGGER.error("Unexpected error during token check: %s", ex)
+                self.clear_tokens()
+                raise LDATAAuthError(f"Token validation error: {ex}") from ex
+        
         return False
 
     def get_residencePermissions(self) -> bool:
