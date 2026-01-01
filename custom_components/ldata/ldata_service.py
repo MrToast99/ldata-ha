@@ -462,9 +462,16 @@ class LDATAService:
                     timeout=15,
                 )
                 
-                # Check specifically for Auth failure
-                if result.status_code in (401, 403, 406):
-                    raise LDATAAuthError("Auth token invalid during API call")
+                if result.status_code == 401:
+                    raise LDATAAuthError("Auth token invalid (401) during API call")
+                
+                if result.status_code in (403, 406):
+                     _LOGGER.warning(
+                        "Access forbidden or not acceptable (HTTP %s) when getting WHEMS panels for residence %s. "
+                        "This may be a permission issue. Skipping.", 
+                        result.status_code, residenceId
+                    )
+                     continue # Skip this loop, DO NOT raise Auth Error
 
                 if result.status_code == 200:
                     _LOGGER.debug(
@@ -510,9 +517,16 @@ class LDATAService:
                     timeout=15,
                 )
                 
-                # Check specifically for Auth failure
-                if result.status_code in (401, 403, 406):
-                    raise LDATAAuthError("Auth token invalid during API call")
+                if result.status_code == 401:
+                    raise LDATAAuthError("Auth token invalid (401) during API call")
+
+                if result.status_code in (403, 406):
+                     _LOGGER.warning(
+                        "Access forbidden or not acceptable (HTTP %s) when getting LDATA panels for residence %s. "
+                        "This may be a permission issue. Skipping.", 
+                        result.status_code, residenceId
+                    )
+                     continue # Skip this loop, DO NOT raise Auth Error
 
                 if result.status_code == 200:
                     _LOGGER.debug(
