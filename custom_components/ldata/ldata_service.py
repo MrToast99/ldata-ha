@@ -669,6 +669,10 @@ class LDATAService:
                 # User does not have multiple residences, lets try just the single residence
                 self.get_residence()
             self.get_residencePermissions()
+        
+        if self.residence_id_list:
+            self.residence_id_list = [x for x in self.residence_id_list if x is not None]
+
         if self.residence_id_list is None or len(self.residence_id_list) == 0:
             _LOGGER.error("Could not get Residence ID.")
             raise Exception("Could not get LDATA Residence ID.")
